@@ -1,4 +1,4 @@
-# @openclaw/vibedot-demo
+# openclaw-vibe-dot-demo
 
 OpenClaw channel plugin that receives meeting transcriptions from Vibe Dot devices via Server-Sent Events (SSE).
 
@@ -6,15 +6,25 @@ This is a **one-way inbound channel** -- transcriptions flow into OpenClaw but a
 
 ## Configuration
 
-Add the following to your OpenClaw config (`openclaw.yaml`):
+Add the following to your OpenClaw config (`openclaw.json`):
 
-```yaml
-channels:
-  vibedot:
-    token: "your-bearer-token-here"
+```json
+{
+  "channels": {
+    "vibedot": {
+      "token": "your-bearer-token-here"
+    }
+  }
+}
 ```
 
-The `token` is the bearer token used to authenticate with the Vibe Dot SSE relay endpoint at `https://demo-dot-relay.vibeus.workers.dev/dot-messages`.
+Alternatively, you can set up the channel using the CLI:
+
+```sh
+openclaw channels add --channel vibedot --token "<token>"
+```
+
+The `token` is the bearer token used to authenticate with the Vibe Dot SSE relay endpoint at `https://demo-dot-relay.vibeus.workers.dev/dot-messages`. To obtain a token, visit https://demo-dot-relay.vibeus.workers.dev/auth/google.
 
 ## How It Works
 
