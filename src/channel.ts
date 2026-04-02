@@ -79,7 +79,7 @@ export const vibedotPlugin = createChatChannelPlugin({
     meta: {
       id: "vibedot",
       label: "Vibe Dot",
-      blurb: "One-way channel for Vibe Dot meeting transcriptions via SSE.",
+      blurb: "One-way channel for Vibe Dot transcriptions and commands via SSE.",
       order: 100,
       selectionLabel: "Vibe Dot",
       docsPath: "/channels/vibedot",
@@ -87,7 +87,7 @@ export const vibedotPlugin = createChatChannelPlugin({
     setup: vibedotSetupAdapter,
     capabilities: {
       chatTypes: ["direct"],
-      nativeCommands: false,
+      nativeCommands: true,
       blockStreaming: true,
     },
     reload: { configPrefixes: ["channels.vibedot"] },

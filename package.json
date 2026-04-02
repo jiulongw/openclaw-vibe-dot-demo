@@ -1,10 +1,16 @@
 {
-  "name": "@openclaw/vibedot-demo",
-  "version": "0.1.0",
+  "name": "openclaw-vibedot-plugin",
+  "version": "0.0.1",
   "private": true,
-  "description": "OpenClaw channel plugin for Vibe Dot meeting transcriptions (demo)",
+  "description": "OpenClaw channel plugin for Vibe Dot transcriptions and commands",
   "type": "module",
   "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.1"
+    },
+    "build": {
+      "openclawVersion": ">=2026.1"
+    },
     "extensions": [
       "./index.ts"
     ],
@@ -12,9 +18,9 @@
     "channel": {
       "id": "vibedot",
       "label": "Vibe Dot",
-      "selectionLabel": "Vibe Dot (SSE transcription)",
+      "selectionLabel": "Vibe Dot",
       "detailLabel": "Vibe Dot",
-      "blurb": "One-way channel for Vibe Dot meeting transcriptions via SSE.",
+      "blurb": "One-way channel for Vibe Dot transcriptions and commands via SSE.",
       "order": 100,
       "markdownCapable": false
     }
@@ -22,11 +28,13 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "bun run format:check && tsc --noEmit"
+    "check": "bun run format:check && tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "openclaw": "^2026.4.1",
     "prettier": "^3.8.1",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   }
 }

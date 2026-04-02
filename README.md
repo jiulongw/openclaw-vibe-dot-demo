@@ -1,6 +1,6 @@
 # openclaw-vibe-dot-demo
 
-OpenClaw channel plugin that receives meeting transcriptions from Vibe Dot devices via Server-Sent Events (SSE).
+OpenClaw channel plugin that receives transcriptions and commands from Vibe Dot devices via Server-Sent Events (SSE).
 
 This is a **one-way inbound channel** -- transcriptions flow into OpenClaw but agent replies are not sent back to the device. Optionally, agent replies can be forwarded to a Slack incoming webhook.
 

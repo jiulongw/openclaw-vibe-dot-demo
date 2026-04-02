@@ -27,13 +27,22 @@ export type VibeDotMonitorOptions = {
 };
 
 export async function startVibeDotMonitor(options: VibeDotMonitorOptions): Promise<void> {
-  const { token, accountId, config, runtime, abortSignal, log, error } = options;
+  const { token, accountId, config, runtime, abortSignal, slackWebhook, log, error } = options;
   let reconnectDelay = RECONNECT_BASE_MS;
 
   while (!abortSignal.aborted) {
     try {
       log?.("[vibedot] connecting to SSE endpoint...");
-      await connectAndProcess({ token, accountId, config, runtime, abortSignal, log, error });
+      await connectAndProcess({
+        token,
+        accountId,
+        config,
+        runtime,
+        abortSignal,
+        slackWebhook,
+        log,
+        error,
+      });
       // If connectAndProcess returns normally (stream ended), reconnect
       reconnectDelay = RECONNECT_BASE_MS;
     } catch (err) {
