@@ -1,0 +1,33 @@
+{
+  "name": "@openclaw/vibedot-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenClaw channel plugin for Vibe Dot meeting transcriptions (demo)",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.4.1"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "setupEntry": "./setup-entry.ts",
+    "channel": {
+      "id": "vibedot",
+      "label": "Vibe Dot",
+      "selectionLabel": "Vibe Dot (SSE transcription)",
+      "detailLabel": "Vibe Dot",
+      "blurb": "One-way channel for Vibe Dot meeting transcriptions via SSE.",
+      "order": 100,
+      "markdownCapable": false
+    }
+  }
+}

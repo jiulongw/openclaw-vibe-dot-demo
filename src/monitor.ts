@@ -1,0 +1,192 @@
+import type { PluginRuntime } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-config-helpers";
+import { dispatchInboundDirectDmWithRuntime } from "openclaw/plugin-sdk/direct-dm";
+
+const SSE_URL = "https://demo-dot-relay.vibeus.workers.dev/dot-messages";
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+
+export type VibeDotSSEMessage = {
+  user_id: string;
+  user_email: string;
+  device_type: string;
+  meeting_type: string;
+  start_timestamp: number;
+  audio_url: string;
+  transcription: string;
+};
+
+export type VibeDotMonitorOptions = {
+  token: string;
+  accountId: string;
+  config: OpenClawConfig;
+  runtime: PluginRuntime;
+  abortSignal: AbortSignal;
+  log?: (msg: string) => void;
+  error?: (msg: string) => void;
+};
+
+export async function startVibeDotMonitor(options: VibeDotMonitorOptions): Promise<void> {
+  const { token, accountId, config, runtime, abortSignal, log, error } = options;
+  let reconnectDelay = RECONNECT_BASE_MS;
+
+  while (!abortSignal.aborted) {
+    try {
+      log?.("[vibedot] connecting to SSE endpoint...");
+      await connectAndProcess({ token, accountId, config, runtime, abortSignal, log, error });
+      // If connectAndProcess returns normally (stream ended), reconnect
+      reconnectDelay = RECONNECT_BASE_MS;
+    } catch (err) {
+      if (abortSignal.aborted) break;
+      error?.(`[vibedot] SSE connection error: ${String(err)}`);
+      // Exponential backoff
+      await sleep(reconnectDelay, abortSignal);
+      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+    }
+  }
+}
+
+async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> {
+  const { token, accountId, config, runtime, abortSignal, log, error } = options;
+
+  const response = await fetch(SSE_URL, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: abortSignal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`SSE endpoint returned ${response.status}: ${response.statusText}`);
+  }
+
+  const body = response.body;
+  if (!body) {
+    throw new Error("SSE response has no body");
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let currentEvent = "";
+  let currentData = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (line.startsWith(":")) {
+          // Comment line (e.g., ": ping"), ignore
+          continue;
+        }
+
+        if (line === "") {
+          // Empty line = end of event
+          if (currentEvent === "message" && currentData) {
+            try {
+              await processSSEMessage({
+                data: currentData,
+                accountId,
+                config,
+                runtime,
+                log,
+                error,
+              });
+            } catch (err) {
+              error?.(`[vibedot] failed processing message: ${String(err)}`);
+            }
+          }
+          currentEvent = "";
+          currentData = "";
+          continue;
+        }
+
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          currentData = line.slice(6);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function processSSEMessage(params: {
+  data: string;
+  accountId: string;
+  config: OpenClawConfig;
+  runtime: PluginRuntime;
+  log?: (msg: string) => void;
+  error?: (msg: string) => void;
+}): Promise<void> {
+  const { data, accountId, config, runtime, log, error } = params;
+
+  let message: VibeDotSSEMessage;
+  try {
+    message = JSON.parse(data);
+  } catch {
+    error?.(`[vibedot] failed to parse SSE data: ${data.slice(0, 200)}`);
+    return;
+  }
+
+  const transcription = message.transcription?.trim();
+  if (!transcription) {
+    return;
+  }
+
+  log?.(`[vibedot] received transcription from ${message.user_email}: ${transcription.slice(0, 80)}...`);
+
+  await dispatchInboundDirectDmWithRuntime({
+    cfg: config,
+    runtime,
+    channel: "vibedot",
+    channelLabel: "Vibe Dot",
+    accountId,
+    peer: { kind: "direct", id: message.user_id },
+    senderId: message.user_id,
+    senderAddress: `vibedot:${message.user_id}`,
+    recipientAddress: "vibedot:dot",
+    conversationLabel: message.user_email || message.user_id,
+    rawBody: transcription,
+    messageId: `${message.user_id}-${message.start_timestamp}`,
+    timestamp: message.start_timestamp ? message.start_timestamp * 1000 : undefined,
+    commandAuthorized: true,
+    provider: "vibedot",
+    surface: "vibedot",
+    extraContext: {
+      SenderUsername: message.user_email,
+    },
+    deliver: async (payload) => {
+      // One-way channel: log agent replies for debugging, but don't deliver
+      log?.(`[vibedot] agent reply (discarded): ${JSON.stringify(payload)}`);
+    },
+    onRecordError: (err) => {
+      error?.(`[vibedot] session record error: ${String(err)}`);
+    },
+    onDispatchError: (err, info) => {
+      error?.(`[vibedot] reply dispatch error (${info.kind}): ${String(err)}`);
+    },
+  });
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
