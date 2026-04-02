@@ -1,5 +1,4 @@
-import type { PluginRuntime } from "openclaw/plugin-sdk/core";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-config-helpers";
+import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/core";
 import { dispatchInboundDirectDmWithRuntime } from "openclaw/plugin-sdk/direct-dm";
 
 const SSE_URL = "https://demo-dot-relay.vibeus.workers.dev/dot-messages";
@@ -22,6 +21,7 @@ export type VibeDotMonitorOptions = {
   config: OpenClawConfig;
   runtime: PluginRuntime;
   abortSignal: AbortSignal;
+  slackWebhook?: string;
   log?: (msg: string) => void;
   error?: (msg: string) => void;
 };
@@ -94,6 +94,7 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
                 accountId,
                 config,
                 runtime,
+                slackWebhook: options.slackWebhook,
                 log,
                 error,
               });
@@ -123,10 +124,11 @@ async function processSSEMessage(params: {
   accountId: string;
   config: OpenClawConfig;
   runtime: PluginRuntime;
+  slackWebhook?: string;
   log?: (msg: string) => void;
   error?: (msg: string) => void;
 }): Promise<void> {
-  const { data, accountId, config, runtime, log, error } = params;
+  const { data, accountId, config, runtime, slackWebhook, log, error } = params;
 
   let message: VibeDotSSEMessage;
   try {
@@ -141,7 +143,9 @@ async function processSSEMessage(params: {
     return;
   }
 
-  log?.(`[vibedot] received transcription from ${message.user_email}: ${transcription.slice(0, 80)}...`);
+  log?.(
+    `[vibedot] received transcription from ${message.user_email}: ${transcription.slice(0, 80)}...`,
+  );
 
   await dispatchInboundDirectDmWithRuntime({
     cfg: config,
@@ -164,8 +168,23 @@ async function processSSEMessage(params: {
       SenderUsername: message.user_email,
     },
     deliver: async (payload) => {
-      // One-way channel: log agent replies for debugging, but don't deliver
-      log?.(`[vibedot] agent reply (discarded): ${JSON.stringify(payload)}`);
+      log?.(`[vibedot] agent reply: ${JSON.stringify(payload)}`);
+
+      if (slackWebhook) {
+        try {
+          const text = payload.text ?? "";
+          const resp = await fetch(slackWebhook, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          if (!resp.ok) {
+            error?.(`[vibedot] slack webhook returned ${resp.status}: ${resp.statusText}`);
+          }
+        } catch (err) {
+          error?.(`[vibedot] slack webhook error: ${String(err)}`);
+        }
+      }
     },
     onRecordError: (err) => {
       error?.(`[vibedot] session record error: ${String(err)}`);

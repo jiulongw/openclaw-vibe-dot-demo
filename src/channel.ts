@@ -17,6 +17,7 @@ import { startVibeDotMonitor } from "./monitor.js";
 export type VibeDotAccountConfig = {
   enabled?: boolean;
   token?: string;
+  slack_webhook?: string;
 };
 
 export type ResolvedVibeDotAccount = {
@@ -40,6 +41,7 @@ function resolveVibeDotAccount(params: {
     enabled,
     config: {
       token: channelConfig.token,
+      slack_webhook: channelConfig.slack_webhook,
     },
   };
 }
@@ -64,7 +66,7 @@ const vibedotConfigAdapter = createScopedChannelConfigAdapter<ResolvedVibeDotAcc
   listAccountIds,
   resolveAccount: adaptScopedAccountAccessor(resolveVibeDotAccount),
   defaultAccountId: resolveDefaultAccountId,
-  clearBaseFields: ["token"],
+  clearBaseFields: ["token", "slack_webhook"],
   resolveAllowFrom: () => null,
   formatAllowFrom: () => [],
 });
@@ -79,6 +81,8 @@ export const vibedotPlugin = createChatChannelPlugin({
       label: "Vibe Dot",
       blurb: "One-way channel for Vibe Dot meeting transcriptions via SSE.",
       order: 100,
+      selectionLabel: "Vibe Dot",
+      docsPath: "/channels/vibedot",
     },
     setup: vibedotSetupAdapter,
     capabilities: {
@@ -118,6 +122,7 @@ export const vibedotPlugin = createChatChannelPlugin({
               config: ctx.cfg,
               runtime,
               abortSignal: ctx.abortSignal,
+              slackWebhook: account.config.slack_webhook,
               log: (msg) => ctx.log?.info(msg),
               error: (msg) => ctx.log?.error(msg),
             });
