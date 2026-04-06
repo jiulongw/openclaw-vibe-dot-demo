@@ -59,9 +59,15 @@ export async function startVibeDotMonitor(options: VibeDotMonitorOptions): Promi
 async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> {
   const { token, accountId, config, runtime, abortSignal, log, error } = options;
 
+  // Use a dedicated AbortController for ping timeout so aborting the fetch is
+  // reliable across runtimes (reader.cancel() does not always interrupt a
+  // pending read in Bun).
+  const pingAbort = new AbortController();
+  const combinedSignal = AbortSignal.any([abortSignal, pingAbort.signal]);
+
   const response = await fetch(SSE_URL, {
     headers: { Authorization: `Bearer ${token}` },
-    signal: abortSignal,
+    signal: combinedSignal,
   });
 
   if (!response.ok) {
@@ -79,14 +85,13 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
   let currentEvent = "";
   let currentData = "";
 
-  let pingTimedOut = false;
   let pingTimer: ReturnType<typeof setTimeout> | undefined;
 
   const resetPingTimeout = () => {
     if (pingTimer) clearTimeout(pingTimer);
     pingTimer = setTimeout(() => {
-      pingTimedOut = true;
-      reader.cancel();
+      log?.("[vibedot] ping timeout: no ping received for 120s, reconnecting...");
+      pingAbort.abort();
     }, PING_TIMEOUT_MS);
   };
 
@@ -105,6 +110,7 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
       for (const line of lines) {
         if (line.startsWith(":")) {
           // Comment line (e.g., ": ping") — reset ping timeout
+          log?.(`[vibedot] ping received`);
           resetPingTimeout();
           continue;
         }
@@ -143,7 +149,7 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
     reader.releaseLock();
   }
 
-  if (pingTimedOut) {
+  if (pingAbort.signal.aborted && !abortSignal.aborted) {
     throw new Error("ping timeout: no ping received for 120s");
   }
 }
