@@ -1,6 +1,6 @@
 {
   "name": "openclaw-vibedot-plugin",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "description": "OpenClaw channel plugin for Vibe Dot transcriptions and commands",
   "type": "module",

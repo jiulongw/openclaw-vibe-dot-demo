@@ -110,7 +110,6 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
       for (const line of lines) {
         if (line.startsWith(":")) {
           // Comment line (e.g., ": ping") — reset ping timeout
-          log?.(`[vibedot] ping received`);
           resetPingTimeout();
           continue;
         }
