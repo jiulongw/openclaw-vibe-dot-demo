@@ -4,6 +4,7 @@ import { dispatchInboundDirectDmWithRuntime } from "openclaw/plugin-sdk/direct-d
 const SSE_URL = "https://demo-dot-relay.vibeus.workers.dev/dot-messages";
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
+const PING_TIMEOUT_MS = 120_000;
 
 export type VibeDotSSEMessage = {
   user_id: string;
@@ -78,6 +79,19 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
   let currentEvent = "";
   let currentData = "";
 
+  let pingTimedOut = false;
+  let pingTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const resetPingTimeout = () => {
+    if (pingTimer) clearTimeout(pingTimer);
+    pingTimer = setTimeout(() => {
+      pingTimedOut = true;
+      reader.cancel();
+    }, PING_TIMEOUT_MS);
+  };
+
+  resetPingTimeout();
+
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -90,7 +104,8 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
 
       for (const line of lines) {
         if (line.startsWith(":")) {
-          // Comment line (e.g., ": ping"), ignore
+          // Comment line (e.g., ": ping") — reset ping timeout
+          resetPingTimeout();
           continue;
         }
 
@@ -124,7 +139,12 @@ async function connectAndProcess(options: VibeDotMonitorOptions): Promise<void> 
       }
     }
   } finally {
+    if (pingTimer) clearTimeout(pingTimer);
     reader.releaseLock();
+  }
+
+  if (pingTimedOut) {
+    throw new Error("ping timeout: no ping received for 120s");
   }
 }
 
